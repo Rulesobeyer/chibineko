@@ -340,7 +340,11 @@
     headPoint(0.55 * side, 0.8, -0.1, pivot.position);
     pivot.position.y -= 0.03;
     face.add(pivot);
-    part(new THREE.ConeGeometry(0.105, 0.22, 16).translate(0, 0.11, 0).scale(1, 1, 0.72), furMat, pivot);
+    // A cone with a tiny flat top rather than a point: a true apex has no usable normal, so its
+    // outline either fans into spikes or thins out to nothing along the edges.
+    const earGeo = new THREE.CylinderGeometry(0.004, 0.105, 0.22, 16, 1).translate(0, 0.11, 0).scale(1, 1, 0.72);
+    weldNormals(earGeo);
+    part(earGeo, furMat, pivot);
     part(
       new THREE.ConeGeometry(0.064, 0.15, 16).translate(0, 0.075, 0).scale(1, 1, 0.3),
       accentMat,
@@ -354,30 +358,73 @@
   }
   const ears = [makeEar(1), makeEar(-1)];
 
+  // Point on the (muzzle-displaced) head surface at head-space (x, y), and its normal.
+  function surfaceAt(x, y, outP, outN) {
+    const u = x / HR.x;
+    const v = y / HR.y;
+    headPoint(u, v, Math.sqrt(Math.max(0, 1 - u * u - v * v)), outP);
+    outN.set(outP.x / (HR.x * HR.x), outP.y / (HR.y * HR.y), outP.z / (HR.z * HR.z)).normalize();
+    return outP;
+  }
+
+  // A line drawn on the head through head-space (x, y) points, lifted off the surface along its
+  // normal. It keeps its 2D shape seen from the front, stays even in width, and never sinks into
+  // the curve the way a flat shape does. `origin` is subtracted so it can live in a sub-group.
+  const FACE_ORIGIN = new THREE.Vector3();
+  function faceStroke(xy, r, lift, origin = FACE_ORIGIN) {
+    const p = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    const pts = xy.map(([x, y]) => surfaceAt(x, y, p, n).clone().addScaledVector(n, lift).sub(origin));
+    const g = new THREE.Group();
+    part(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 3, r, 8, false), inkMat, g, 0, 0, 0, false);
+    for (const end of [pts[0], pts[pts.length - 1]]) {
+      part(new THREE.SphereGeometry(r, 10, 8), inkMat, g, end.x, end.y, end.z, false);
+    }
+    return g;
+  }
+  // (x, y) points along a circular arc from angle `from` to `to`.
+  const arcXY = (cx, cy, R, from, to, steps = 10) =>
+    Array.from({ length: steps + 1 }, (_, i) => {
+      const t = from + ((to - from) * i) / steps;
+      return [cx + R * Math.cos(t), cy + R * Math.sin(t)];
+    });
+
+  // Neko's eyes: thin vertical lines. Closed, they become arcs: ∩ when happy, ∪ when asleep or blinking.
+  const EYE = { x: 0.088, y: 0.056, len: 0.07, r: 0.0125, lift: 0.006, arcR: 0.036, arcW: 0.0095 };
   function makeEye(side) {
-    const g = onFace(new THREE.Group(), 0.32 * side, 0.15, 0.9, 0.006);
+    const x = EYE.x * side;
+    const p = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    const g = new THREE.Group(); // at the middle of the eye, so blinks squash towards it
+    surfaceAt(x, EYE.y, p, n);
+    g.position.copy(p).addScaledVector(n, EYE.lift);
+    face.add(g);
     const open = new THREE.Group();
     g.add(open);
-    part(new THREE.CapsuleGeometry(0.022, 0.05, 4, 12).scale(1, 1, 0.5), inkMat, open, 0, 0, 0, false);
-    part(new THREE.SphereGeometry(0.0075, 8, 6), shineMat, open, -0.006, 0.022, 0.009, false);
-    const arc = () => new THREE.TorusGeometry(0.028, 0.0075, 6, 16, Math.PI);
-    const happy = part(arc(), inkMat, g, 0, -0.008, 0.004, false); // ∩
-    const shut = part(arc(), inkMat, g, 0, 0.01, 0.004, false); // ∪
-    shut.rotation.z = Math.PI;
+    const line = Array.from({ length: 7 }, (_, i) => [x, EYE.y + (i / 6 - 0.5) * EYE.len]);
+    open.add(faceStroke(line, EYE.r, EYE.lift, g.position));
+    const happy = faceStroke(arcXY(x, EYE.y - 0.014, EYE.arcR, 0, Math.PI), EYE.arcW, EYE.lift, g.position);
+    const shut = faceStroke(arcXY(x, EYE.y + 0.016, EYE.arcR, Math.PI, 2 * Math.PI), EYE.arcW, EYE.lift, g.position);
+    g.add(happy, shut);
     happy.visible = shut.visible = false;
     return { open, happy, shut };
   }
   const eyes = [makeEye(1), makeEye(-1)];
 
-  onFace(flatMesh(ellipsoid(0.024, 0.016, 0.014, 12, 8), accentMat), 0, -0.3, 1, 0.006);
+  onFace(flatMesh(ellipsoid(0.038, 0.025, 0.022, 14, 10), accentMat), 0, -0.14, 1, 0.01);
+  // ω, hanging just under the nose. Two shallow arcs whose outer ends line up with the eyes.
+  // Each arc is 2·R·sin(span) wide, so the two together reach ±halfWidth (a bit inside the eyes).
+  const MOUTH_HALF_WIDTH = EYE.x * 0.85;
+  const MOUTH = { top: -0.064, R: MOUTH_HALF_WIDTH / (2 * Math.sin((70 * Math.PI) / 180)), span: (70 * Math.PI) / 180, r: 0.007 };
   const mouthW = new THREE.Group();
   face.add(mouthW);
   for (const side of [1, -1]) {
-    const m = onFace(flatMesh(new THREE.TorusGeometry(0.018, 0.0055, 6, 12, Math.PI), inkMat), 0.075 * side, -0.52, 0.86, -0.002);
-    m.rotateZ(Math.PI);
-    mouthW.add(m);
+    const cx = side * MOUTH.R * Math.sin(MOUTH.span); // inner ends meet at x = 0
+    const cy = MOUTH.top + MOUTH.R * Math.cos(MOUTH.span);
+    const from = -Math.PI / 2 - MOUTH.span;
+    mouthW.add(faceStroke(arcXY(cx, cy, MOUTH.R, from, from + 2 * MOUTH.span), MOUTH.r, 0.004));
   }
-  const yawn = onFace(flatMesh(ellipsoid(0.04, 0.045, 0.015, 16, 10), mouthMat), 0, -0.62, 0.8, 0.004);
+  const yawn = onFace(flatMesh(ellipsoid(0.046, 0.052, 0.017, 16, 10), mouthMat), 0, -0.5, 0.87, 0.004);
   yawn.visible = false;
   const blush = [1, -1].map((side) => {
     const b = onFace(flatMesh(new THREE.CircleGeometry(0.034, 18), blushMat), 0.62 * side, -0.26, 0.74, -0.004);
