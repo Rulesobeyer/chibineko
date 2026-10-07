@@ -390,7 +390,7 @@
     });
 
   // Neko's eyes: thin vertical lines. Closed, they become arcs: ∩ when happy, ∪ when asleep or blinking.
-  const EYE = { x: 0.088, y: 0.056, len: 0.07, r: 0.0125, lift: 0.006, arcR: 0.036, arcW: 0.0095 };
+  const EYE = { x: 0.088, y: 0.056, len: 0.07, r: 0.0125, lift: 0.006, arcR: 0.036, arcW: 0.0095, roundR: 0.04 };
   function makeEye(side) {
     const x = EYE.x * side;
     const p = new THREE.Vector3();
@@ -407,7 +407,14 @@
     const shut = faceStroke(arcXY(x, EYE.y + 0.016, EYE.arcR, Math.PI, 2 * Math.PI), EYE.arcW, EYE.lift, g.position);
     g.add(happy, shut);
     happy.visible = shut.visible = false;
-    return { open, happy, shut };
+    // Alert: round eyes, a flattened ball facing out along the surface normal.
+    surfaceAt(x, EYE.y, p, n);
+    const round = new THREE.Group();
+    round.rotation.set(-Math.asin(n.y), Math.atan2(n.x, n.z), 0, "YXZ");
+    g.add(round);
+    part(ellipsoid(EYE.roundR, EYE.roundR, 0.012, 18, 10), inkMat, round, 0, 0, 0, false);
+    round.visible = false;
+    return { open, happy, shut, round };
   }
   const eyes = [makeEye(1), makeEye(-1)];
 
@@ -426,6 +433,9 @@
   }
   const yawn = onFace(flatMesh(ellipsoid(0.046, 0.052, 0.017, 16, 10), mouthMat), 0, -0.5, 0.87, 0.004);
   yawn.visible = false;
+  // Alert: a small round "o" just under the nose, where the ω usually sits.
+  const gasp = onFace(flatMesh(ellipsoid(0.022, 0.026, 0.012, 14, 10), mouthMat), 0, -0.36, 0.93, 0.004);
+  gasp.visible = false;
   const blush = [1, -1].map((side) => {
     const b = onFace(flatMesh(new THREE.CircleGeometry(0.034, 18), blushMat), 0.62 * side, -0.26, 0.74, -0.004);
     b.visible = false;
@@ -1078,7 +1088,9 @@
     tailRate: 2.4,
     eyeOpen: 1,
     eyeHappy: 0,
+    eyeRound: 0, // 1 = round alert eyes instead of lines
     mouth: 0,
+    gasp: 0, // 1 = small round alert mouth
     blush: 0,
     look: 1,
   };
@@ -1270,7 +1282,8 @@
       p.squash = 1 - 0.06 * crouch + 0.07 * hop;
       p.earBack = -0.2;
       p.earPerk = 1;
-      p.eyeOpen = 1.2;
+      p.eyeRound = 1;
+      p.gasp = 1;
       p.headPitch = 0.14;
       p.tailLift = 1.25;
       p.tailCurl = 0.05;
@@ -1473,15 +1486,21 @@
 
     const open = clamp(p.eyeOpen, 0, 1.25);
     const closed = open < 0.22;
+    const round = clamp(p.eyeRound, 0, 1);
     for (const eye of eyes) {
-      eye.open.visible = !closed;
+      eye.open.visible = !closed && round < 0.5;
       eye.open.scale.set(1 + Math.max(0, open - 1) * 0.4, Math.max(open, 0.15), 1);
+      eye.round.visible = !closed && round >= 0.5;
+      const pop = 0.6 + 0.4 * round; // grows in as the alert takes over
+      eye.round.scale.set(pop, pop * Math.max(Math.min(open, 1), 0.15), pop);
       eye.happy.visible = closed && p.eyeHappy > 0.5;
       eye.shut.visible = closed && p.eyeHappy <= 0.5;
     }
     yawn.visible = p.mouth > 0.03;
     yawn.scale.set(0.6 + 0.4 * p.mouth, Math.max(p.mouth, 0.01), 1);
-    mouthW.visible = p.mouth < 0.3;
+    gasp.visible = p.gasp > 0.05;
+    gasp.scale.setScalar(Math.max(p.gasp, 0.01));
+    mouthW.visible = p.mouth < 0.3 && p.gasp < 0.5;
     blushMat.opacity = 0.85 * p.blush;
     blush[0].visible = blush[1].visible = p.blush > 0.01;
 
