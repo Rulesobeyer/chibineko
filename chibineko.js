@@ -1,5 +1,5 @@
 /*!
- * chibineko 1.0.0: a little 3D cat that chases your cursor. MIT licensed.
+ * chibineko 1.0.1: a little 3D cat that chases your cursor. MIT licensed.
  * A 3D take on oneko.js by adryd325 (MIT): https://github.com/adryd325/oneko.js
  * Neko was originally created by Masayuki Koba.
  *
@@ -20,7 +20,7 @@
 (async function chibineko() {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   if (window.chibineko) return;
   const script = document.currentScript || document.querySelector('script[src*="chibineko"]');
   const ds = (script && script.dataset) || {};

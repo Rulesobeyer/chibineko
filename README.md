@@ -46,7 +46,7 @@ chibineko.setColors({ color: "#7c8aa0", outline: "#10141f", accent: "#ffb3c1" })
 chibineko.colors;             // current { color, outline, accent }
 chibineko.state;              // current behaviour
 chibineko.timeScale = 0.25;   // slow motion (1 = normal)
-chibineko.version;            // "1.0.0"
+chibineko.version;            // "1.0.1"
 chibineko.destroy();          // remove the cat
 ```
 
