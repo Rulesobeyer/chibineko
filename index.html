@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>chibineko</title>
+  <style>
+    :root {
+      --bg: #f6f3ee;
+      --fg: #2a2724;
+      --muted: #6f6a64;
+      --card: #fffdf9;
+      --line: #e4ded5;
+      --accent: #d9577a;
+    }
+    :root[data-theme="dark"] {
+      --bg: #1d1b19;
+      --fg: #eeeae4;
+      --muted: #a39d95;
+      --card: #262321;
+      --line: #3a3632;
+      --accent: #f08aa6;
+    }
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      font: inherit;
+      font-size: 0.85rem;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--fg);
+      cursor: pointer;
+    }
+    .theme-toggle:hover { border-color: var(--accent); }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { max-width: 680px; margin: 0 auto; padding: 56px 16px 96px; }
+    h1 { font-size: 2.25rem; margin: 0 0 8px; letter-spacing: -0.02em; }
+    h2 { font-size: 1rem; margin: 0 0 12px; }
+    p { margin: 0 0 16px; color: var(--muted); }
+    a { color: var(--accent); }
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .row a, .row button {
+      font: inherit;
+      font-size: 0.9rem;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--fg);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .row button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+    .row button:hover { border-color: var(--accent); }
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 6px;
+      border-radius: 50%;
+      vertical-align: -1px;
+    }
+    pre {
+      margin: 0;
+      padding: 14px;
+      overflow-x: auto;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      font-size: 0.85rem;
+    }
+  </style>
+  <script>
+    try {
+      if (localStorage.getItem("chibineko-demo-theme") === "dark") document.documentElement.dataset.theme = "dark";
+    } catch (_) {}
+  </script>
+</head>
+<body>
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false">Dark mode</button>
+  <main>
+    <h1>chibineko</h1>
+    <p>
+      A little 3D cat, remade from <a href="https://github.com/adryd325/oneko.js">oneko.js</a>. Move your mouse (or
+      tap) and it follows. Ignore it for a while and it'll sit down, scratch, wander over to the edge of the screen to
+      claw at it, and eventually nod off. Click it to give it a pet.
+    </p>
+
+    <section>
+      <h2>Colour</h2>
+      <p>Pick one here, or right-click the cat (long-press on a phone) for the colour ring.</p>
+      <div class="row" id="presets"></div>
+    </section>
+
+    <section>
+      <h2>Behaviours</h2>
+      <div class="row">
+        <button data-trigger="sit">Sit</button>
+        <button data-trigger="groom">Groom</button>
+        <button data-trigger="scratchWall">Scratch wall</button>
+        <button data-trigger="tired">Yawn &amp; sleep</button>
+        <button data-trigger="alert">Alert</button>
+        <button data-trigger="pet">Pet</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Use it</h2>
+      <p>Paste this into any page:</p>
+      <pre><code>&lt;script src="https://cdn.jsdelivr.net/gh/Rulesobeyer/chibineko@1/chibineko.min.js"
+  data-persist-position&gt;&lt;/script&gt;</code></pre>
+    </section>
+  </main>
+
+  <script>
+    const query = new URLSearchParams(location.search);
+    const cat = document.createElement("script");
+    cat.src = "chibineko.js";
+    cat.dataset.persistPosition = "";
+    if (query.get("size")) cat.dataset.size = query.get("size");
+    document.body.appendChild(cat);
+
+    const list = document.getElementById("presets");
+    const syncPresets = () => {
+      const now = window.chibineko.colors;
+      for (const b of list.children) {
+        const c = window.chibineko.presets[b.dataset.preset];
+        b.setAttribute("aria-pressed", String(c.color === now.color && c.outline === now.outline));
+      }
+    };
+    (async () => {
+      while (!window.chibineko?.presets) await new Promise((r) => setTimeout(r, 50));
+      for (const [name, c] of Object.entries(window.chibineko.presets)) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.dataset.preset = name;
+        b.innerHTML = `<span class="dot" style="background:${c.color};box-shadow:0 0 0 2px ${c.outline}"></span>`;
+        b.append(name[0].toUpperCase() + name.slice(1));
+        b.addEventListener("click", () => {
+          window.chibineko.setColors(c);
+          syncPresets();
+        });
+        list.appendChild(b);
+      }
+      syncPresets();
+      document.addEventListener("click", () => setTimeout(syncPresets, 0), true); // picker changes too
+    })();
+
+    for (const button of document.querySelectorAll("[data-trigger]")) {
+      button.addEventListener("click", () => window.chibineko?.trigger?.(button.dataset.trigger));
+    }
+
+    const toggle = document.getElementById("theme-toggle");
+    const syncToggle = () => toggle.setAttribute("aria-pressed", String(document.documentElement.dataset.theme === "dark"));
+    syncToggle();
+    toggle.addEventListener("click", () => {
+      const dark = document.documentElement.dataset.theme !== "dark";
+      if (dark) document.documentElement.dataset.theme = "dark";
+      else delete document.documentElement.dataset.theme;
+      try {
+        localStorage.setItem("chibineko-demo-theme", dark ? "dark" : "light");
+      } catch (_) {}
+      syncToggle();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+# Local only: old versions, editor/agent tooling, reference sprite sheet, full internal docs
+backups/
+.claude/
+oneko.gif
+documentation/
